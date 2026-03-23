@@ -13,3 +13,5 @@ export async function fetchCard(uuid) {
     card.text = card.text.replaceAll('\\n', '\n');
     return card;
 }
+
+

@@ -32,50 +32,85 @@ class ImportCardCommand extends Command
         parent::__construct();
     }
 
+    protected function configure(): void
+    {
+        $this->addOption('limit', 'l', InputOption::VALUE_OPTIONAL, 'Limite le nombre de cartes importées');
+    }
+
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         ini_set('memory_limit', '2G');
-        // On récupère le temps actuel
+
         $io = new SymfonyStyle($input, $output);
         $filepath = __DIR__ . '/../../data/cards.csv';
-        $handle = fopen($filepath, 'r');
-
-        // On récupère le temps actuel
-        $start = microtime(true);
 
         $this->logger->info('Importing cards from ' . $filepath);
-        if ($handle === false) {
+
+        if (!is_readable($filepath)) {
             $io->error('File not found');
+            $this->logger->error('File not found: ' . $filepath);
             return Command::FAILURE;
         }
 
+        $handle = fopen($filepath, 'r');
+        if ($handle === false) {
+            $io->error('Unable to open file');
+            $this->logger->error('Unable to open file: ' . $filepath);
+            return Command::FAILURE;
+        }
+
+        $limit = $input->getOption('limit') !== null ? (int)$input->getOption('limit') : null;
+        $start = microtime(true);
+
         $i = 0;
         $this->csvHeader = fgetcsv($handle);
-        $uuidInDatabase = $this->entityManager->getRepository(Card::class)->getAllUuids();
+        if ($this->csvHeader === false) {
+            $io->error('CSV header invalid or empty');
+            $this->logger->error('CSV header invalid or empty in ' . $filepath);
+            fclose($handle);
+            return Command::FAILURE;
+        }
+
+        $uuidInDatabase = array_flip($this->entityManager->getRepository(Card::class)->getAllUuids());
 
         $progressIndicator = new ProgressIndicator($output);
         $progressIndicator->start('Importing cards...');
 
-        while (($row = $this->readCSV($handle)) !== false) {
-            $i++;
+        try {
+            while (($row = $this->readCSV($handle)) !== false) {
+                if ($limit !== null && $i >= $limit) {
+                    break;
+                }
 
-            if (!in_array($row['uuid'], $uuidInDatabase)) {
-                $this->addCard($row);
+                $i++;
+
+                if (!isset($row['uuid']) || $row['uuid'] === '') {
+                    $this->logger->warning(sprintf('Ligne %d : uuid manquant, ligne ignorée.', $i));
+                    continue;
+                }
+
+                if (!isset($uuidInDatabase[$row['uuid']])) {
+                    $this->addCard($row);
+                }
+
+                if ($i % 2000 === 0) {
+                    $this->entityManager->flush();
+                    $this->entityManager->clear();
+                    $progressIndicator->advance();
+                }
             }
 
-            if ($i % 2000 === 0) {
-                $this->entityManager->flush();
-                $this->entityManager->clear();
-                $progressIndicator->advance();
-            }
+            $this->entityManager->flush();
+            $progressIndicator->finish('Importing cards done.');
+        } catch (\Exception $e) {
+            $this->logger->error('Erreur pendant l\'import: ' . $e->getMessage());
+            $io->error($e->getMessage());
+            fclose($handle);
+            return Command::FAILURE;
         }
-        // Toujours flush en sorti de boucle
-        $this->entityManager->flush();
-        $progressIndicator->finish('Importing cards done.');
 
         fclose($handle);
 
-        // On récupère le temps actuel, et on calcule la différence avec le temps de départ
         $end = microtime(true);
         $timeElapsed = $end - $start;
         $io->success(sprintf('Imported %d cards in %.2f seconds', $i, $timeElapsed));
@@ -88,6 +123,12 @@ class ImportCardCommand extends Command
         if ($row === false) {
             return false;
         }
+
+        //Sauter les lignes mal formées
+        if (count($row) !== count($this->csvHeader)) {
+            return $this->readCSV($handle);
+        }
+
         return array_combine($this->csvHeader, $row);
     }
 
@@ -106,6 +147,5 @@ class ImportCardCommand extends Command
         $card->setText($row['text']);
         $card->setType($row['type']);
         $this->entityManager->persist($card);
-
     }
 }
