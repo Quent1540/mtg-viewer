@@ -30,3 +30,8 @@ Frontend :
 - Route `GET /api/card/sets` qui renvoie les `setCode` distincts (utilisée pour alimenter un `<select>`).
 - L’API `/api/card/search` accepte `setCode` en query pour filtrer les résultats (documentée via OpenAPI).
 - Fichiers modifiés : AllCardsPage.vue, SearchPage.vue, cardService.js, ApiCardController.php, CardRepository.php.
+
+**EXERCICE 4**
+
+- Pagination ajoutée pour le listing : affichage de 100 cartes par page.
+- Frontend : AllCardsPage.vue utilise `fetchAllCards` avec `limit = 100` et boutons Précédent/Suivant.

@@ -22,13 +22,28 @@ class ApiCardController extends AbstractController
     }
 
     #[Route('/all', name: 'list_all', methods: ['GET'])]
-    #[OA\Get(description: 'Return all cards in the database')]
-    #[OA\Response(response: 200, description: 'List all cards')]
-    public function cardAll(): Response
+    #[OA\Get(description: 'Retourne une liste de cartes paginée (100 par page par defaut)')]
+    #[OA\Parameter(name: 'page', in: 'query', required: false, description: 'Page number', schema: new OA\Schema(type: 'integer'))]
+    #[OA\Parameter(name: 'limit', in: 'query', required: false, description: 'Results per page', schema: new OA\Schema(type: 'integer'))]
+    #[OA\Parameter(name: 'setCode', in: 'query', required: false, description: 'Filter by set code', schema: new OA\Schema(type: 'string'))]
+    #[OA\Response(response: 200, description: 'Paginated list of cards')]
+    public function cardAll(Request $request): Response
     {
         $this->logger->info('API: cardAll');
-        $cards = $this->entityManager->getRepository(Card::class)->findAll();
-        return $this->json($cards);
+
+        $page = max(1, (int)$request->query->get('page', 1));
+        $limit = max(1, min(500, (int)$request->query->get('limit', 100))); // default 100
+        $setCode = $request->query->get('setCode');
+
+        $result = $this->entityManager->getRepository(Card::class)->searchWithFilters(null, $setCode, $page, $limit);
+        $data = array_map(fn(Card $c) => $c->jsonSerialize(), $result['results']);
+
+        return $this->json([
+            'data' => $data,
+            'total' => $result['total'],
+            'page' => $page,
+            'limit' => $limit,
+        ]);
     }
 
     #[Route('/search', name: 'search', methods: ['GET'])]
