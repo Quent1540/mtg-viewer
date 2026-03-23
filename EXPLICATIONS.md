@@ -24,4 +24,9 @@ Frontend :
 - Ajout d'une temporisation (debounce ~350ms) pour éviter de spammer l'API à chaque frappe(fluidifie l'application).
 - La recherche ne s'exécute qu'à partir de 3 caractères pour limiter les résultats non pertinents.
 
+**EXERCICE 3**
 
+- Ajout d’un filtre `setCode` pour la recherche et le listing.
+- Route `GET /api/card/sets` qui renvoie les `setCode` distincts (utilisée pour alimenter un `<select>`).
+- L’API `/api/card/search` accepte `setCode` en query pour filtrer les résultats (documentée via OpenAPI).
+- Fichiers modifiés : AllCardsPage.vue, SearchPage.vue, cardService.js, ApiCardController.php, CardRepository.php.
